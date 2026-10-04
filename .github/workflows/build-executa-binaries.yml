@@ -143,22 +143,27 @@ jobs:
           #!/usr/bin/env bash
           set -euo pipefail
           echo "== platform: $PLATFORM   version: $VERSION"
-          # PyInstaller needs a CPython built with --enable-shared. The newest
-          # interpreter in a manylinux image is sometimes a static build (e.g.
-          # cp315 = 3.15.0rc3), which fails with "Python was built without a
-          # shared library". Probe candidates in order and keep the first one
-          # that actually has a shared libpython.
+          echo "-- interpreters in /opt/python:"
+          ls -1 /opt/python 2>/dev/null || echo "(none)"
+          # PyInstaller needs a CPython built with --enable-shared AND the
+          # libpython*.so actually present. The newest interpreter in a
+          # manylinux image can be a static / unsupported pre-release
+          # (cp315 = 3.15.0rc3 -> "Python was built without a shared library").
+          # Probe in a known-good order and keep the first one that works.
           PY=""
-          for v in cp312 cp313 cp311 cp314 cp310 cp315 cp316; do
+          for v in cp312 cp313 cp311 cp314 cp310 cp315; do
             cand="/opt/python/$v-$v/bin/python"
             [ -x "$cand" ] || continue
-            if "$cand" -c "import sys,sysconfig;sys.exit(0 if sysconfig.get_config_var('Py_ENABLE_SHARED') else 1)" 2>/dev/null; then
+            if "$cand" -c "import os,sys,sysconfig;d=sysconfig.get_config_var('LIBDIR') or '';n=sysconfig.get_config_var('INSTSONAME') or sysconfig.get_config_var('LDLIBRARY') or '';sys.exit(0 if (sysconfig.get_config_var('Py_ENABLE_SHARED') and d and n and os.path.exists(os.path.join(d,n))) else 1)" 2>/dev/null; then
               PY="$cand"
               break
             fi
-            echo "-- skipping $v: built without a shared libpython"
+            echo "-- skipping $v: no usable shared libpython"
           done
-          if [ -z "$PY" ]; then PY=python3; fi
+          if [ -z "$PY" ]; then
+            echo "!! no shared-libpython CPython found; falling back to python3"
+            PY=python3
+          fi
           echo "== python: $PY ($("$PY" -V 2>&1))"
 
           cd /io/executas/career-engine-python
