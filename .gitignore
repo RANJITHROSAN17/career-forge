@@ -1,0 +1,21 @@
+# --- Executa build artifacts -------------------------------------------------
+# Binaries are produced by .github/workflows/build-executa-binaries.yml and
+# downloaded from the GitHub Release by scripts/download-binaries.* into
+# executas/*/dist/. Never commit them.
+executas/*/dist/
+*.tar.gz
+*.zip
+*.sha256
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# --- Anna CLI local identity cache -------------------------------------------
+.anna/
+
+# --- OS / editor -------------------------------------------------------------
+.DS_Store
+Thumbs.db

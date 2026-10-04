@@ -1,0 +1,47 @@
+{
+  "slug": "career-engine",
+  "name": "Career Engine",
+  "version": "1.0.1",
+  "executa_type": "tool",
+  "description": "ATS resume & job match analysis engine, XYZ bullet rewriter, tailored cover letter generator, and STAR interview prep studio for Career Forge.",
+  "tool_id": "tool-test-career-engine-12345678",
+  "type": "python",
+  "enabled": true,
+  "distribution": {
+    "active": "binary",
+    "profiles": {
+      "local": {
+        "type": "local",
+        "supports_protocol": true
+      },
+      "binary": {
+        "type": "binary",
+        "executable_name": "career-engine",
+        "supports_protocol": true,
+        "binary_artifacts": {
+          "darwin-arm64": {
+            "path": "dist/career-engine-{version}-darwin-arm64.tar.gz",
+            "entrypoint": "career-engine",
+            "format": "tar.gz"
+          },
+          "darwin-x86_64": {
+            "path": "dist/career-engine-{version}-darwin-x86_64.tar.gz",
+            "entrypoint": "career-engine",
+            "format": "tar.gz"
+          },
+          "linux-x86_64": {
+            "path": "dist/career-engine-{version}-linux-x86_64.tar.gz",
+            "entrypoint": "career-engine",
+            "format": "tar.gz"
+          },
+          "windows-x86_64": {
+            "path": "dist/career-engine-{version}-windows-x86_64.zip",
+            "entrypoint": "career-engine.exe",
+            "format": "zip"
+          }
+        }
+      }
+    }
+  },
+  "_comment": "Publish metadata (slug/name/version/executa_type) is read by `anna-app apps publish`. Dev fields (tool_id/type/enabled) are read by `anna-app dev`. `distribution.active: \"binary\"` is what makes the Agent install a real per-platform binary instead of showing the tool as LOCAL — the archives are built by .github/workflows/build-executa-binaries.yml and downloaded into ./dist by scripts/download-binaries.ps1 before publishing. Run `anna-app dev` from the app root to use the local Python copy (profile `local`), e.g. `anna-app executa publish --profile local` if you ever need to push the dev-only flavour."
+}

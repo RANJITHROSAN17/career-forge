@@ -1,0 +1,186 @@
+# =============================================================================
+# Career Forge — Executa multi-platform binary build
+# =============================================================================
+# Builds the bundled Python Executa (`career-engine`) into self-contained
+# binaries for the 4 platforms the Anna Agent installs from:
+#
+#   darwin-arm64     -> macOS Apple Silicon   (tar.gz)
+#   darwin-x86_64    -> macOS Intel           (tar.gz)
+#   linux-x86_64     -> Linux x86_64         (tar.gz)  <-- REQUIRED: this is the
+#                                                          binary the Anna Cloud
+#                                                          Agent runs.
+#   windows-x86_64   -> Windows x86_64       (zip)
+#
+# Trigger: Actions -> "Build Career Engine Executa Binaries" -> Run workflow
+#          (enter the version that matches executas/career-engine-python/executa.json)
+#
+# Output: a GitHub Release tagged `career-engine-v<version>` holding the 4
+#         archives plus a `.sha256` sidecar for each.
+#
+# Then run locally:
+#   pwsh ./scripts/download-binaries.ps1 -Version 1.0.1 -Repo <owner>/<repo>
+#   anna-app apps publish
+# =============================================================================
+
+name: Build Career Engine Executa Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Executa version (must match executas/career-engine-python/executa.json)"
+        required: true
+        default: "1.0.1"
+
+permissions:
+  contents: write
+
+env:
+  EXECUTA_NAME: career-engine
+  EXECUTA_DIR: executas/career-engine-python
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS Apple Silicon (macos-15 = current Apple Silicon image)
+          - os: macos-15
+            platform: darwin-arm64
+          # macOS Intel. NOTE: macos-13 is RETIRED — a retired label does not
+          # fail, it just queues forever. macos-15-intel is the supported
+          # Intel label (available until Aug 2027).
+          - os: macos-15-intel
+            platform: darwin-x86_64
+          # Linux x86_64 — built inside a manylinux_2_28 container so the
+          # resulting binary only needs glibc >= 2.28. This is what makes it
+          # run on the Anna Cloud Agent regardless of the host distro.
+          - os: ubuntu-latest
+            platform: linux-x86_64
+          # Windows x86_64
+          - os: windows-latest
+            platform: windows-x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------- python
+      - name: Set up Python 3.12
+        if: matrix.os != 'ubuntu-latest'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyInstaller
+        if: matrix.os != 'ubuntu-latest'
+        run: python -m pip install --upgrade pip "pyinstaller>=6.10,<7"
+
+      # ------------------------------------------------------------- macOS
+      - name: Build + smoke-test + package (macOS)
+        if: runner.os == 'macOS'
+        working-directory: ${{ env.EXECUTA_DIR }}
+        env:
+          NAME: career-engine
+          VERSION: ${{ inputs.version }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          python -m PyInstaller --onefile --name "$NAME" --clean --noconfirm \
+            --log-level WARN career_engine_plugin.py
+          echo '{"jsonrpc":"2.0","id":1,"method":"describe"}' | "./dist/$NAME" > /tmp/describe.json
+          cat /tmp/describe.json
+          python -c "import json;d=json.load(open('/tmp/describe.json'));assert 'result' in d;print('describe smoke test OK')"
+          cd dist
+          tar czf "$NAME-$VERSION-$PLATFORM.tar.gz" "$NAME"
+          python -c "import hashlib,sys;h=hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest();open(sys.argv[1]+'.sha256','w').write(h+'  '+sys.argv[1]+chr(10))" "$NAME-$VERSION-$PLATFORM.tar.gz"
+
+      # ------------------------------------------------ Linux (manylinux_2_28)
+      - name: Build + smoke-test + package (linux-x86_64, manylinux_2_28)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          NAME: career-engine
+          VERSION: ${{ inputs.version }}
+          PLATFORM: linux-x86_64
+        run: |
+          set -euo pipefail
+          docker run --rm -e NAME -e VERSION -e PLATFORM \
+            -v "$GITHUB_WORKSPACE:/io" \
+            -w "/io/${{ env.EXECUTA_DIR }}" \
+            quay.io/pypa/manylinux_2_28_x86_64 \
+            bash -c '
+              set -euo pipefail
+              PY=/opt/python/cp312-cp312/bin/python
+              [ -x "$PY" ] || PY=$(ls -d /opt/python/cp3*/bin/python | sort -V | tail -1)
+              echo "Building with $PY ($("$PY" -V 2>&1))"
+              "$PY" -m pip install --upgrade pip "pyinstaller>=6.10,<7"
+              "$PY" -m PyInstaller --onefile --name "$NAME" --clean --noconfirm \
+                --log-level WARN career_engine_plugin.py
+              echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"describe\"}" | "./dist/$NAME" > /tmp/describe.json
+              cat /tmp/describe.json
+              "$PY" -c "import json;d=json.load(open(\"/tmp/describe.json\"));assert \"result\" in d;print(\"describe smoke test OK\")"
+              cd dist
+              tar czf "$NAME-$VERSION-$PLATFORM.tar.gz" "$NAME"
+              "$PY" -c "import hashlib,sys;h=hashlib.sha256(open(sys.argv[1],\"rb\").read()).hexdigest();open(sys.argv[1]+\".sha256\",\"w\").write(h+\"  \"+sys.argv[1]+chr(10))" "$NAME-$VERSION-$PLATFORM.tar.gz"
+              chmod -R a+rX .
+            '
+
+      # ------------------------------------------------------------- Windows
+      - name: Build + smoke-test + package (Windows)
+        if: runner.os == 'Windows'
+        working-directory: ${{ env.EXECUTA_DIR }}
+        shell: pwsh
+        env:
+          NAME: career-engine
+          VERSION: ${{ inputs.version }}
+          PLATFORM: windows-x86_64
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m PyInstaller --onefile --name $env:NAME --clean --noconfirm --log-level WARN career_engine_plugin.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
+          $desc = '{"jsonrpc":"2.0","id":1,"method":"describe"}' | .\dist\$env:NAME.exe
+          $desc | Out-String | Write-Host
+          $json = ($desc | Out-String) | ConvertFrom-Json
+          if (-not $json.result) { throw "describe smoke test failed" }
+          Write-Host "describe smoke test OK"
+          $archive = "dist\$env:NAME-$env:VERSION-$env:PLATFORM.zip"
+          Compress-Archive -Path "dist\$env:NAME.exe" -DestinationPath $archive -Force
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
+          $file = Split-Path $archive -Leaf
+          "$hash  $file" | Out-File -FilePath "$archive.sha256" -Encoding ascii
+
+      # -------------------------------------------------------------- artifacts
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: career-engine-${{ matrix.platform }}
+          path: ${{ env.EXECUTA_DIR }}/dist/career-engine-${{ inputs.version }}-${{ matrix.platform }}.*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: career-engine-*
+          path: dist
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la dist
+
+      - name: Create GitHub Release (career-engine-v${{ inputs.version }})
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: career-engine-v${{ inputs.version }}
+          name: career-engine v${{ inputs.version }}
+          generate_release_notes: true
+          files: dist/career-engine-${{ inputs.version }}-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

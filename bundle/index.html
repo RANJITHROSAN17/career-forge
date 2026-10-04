@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Career Forge — AI Resume &amp; Job Match Studio</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body data-theme="dark">
+    <div class="ambient" aria-hidden="true">
+      <span class="ambient__orb ambient__orb--1"></span>
+      <span class="ambient__orb ambient__orb--2"></span>
+    </div>
+
+    <div class="app-shell">
+      <!-- Top Studio Header -->
+      <header class="topbar">
+        <div class="brand">
+          <img src="icon.svg" alt="" class="brand__icon" />
+          <div>
+            <div class="brand__title-row">
+              <h1 class="brand__name">Career Forge</h1>
+              <span class="badge badge--accent">Anna AI Studio</span>
+            </div>
+            <p class="brand__sub">ATS Resume Match · XYZ Bullet Optimizer · Cover Letter · STAR Interview Prep</p>
+          </div>
+        </div>
+
+        <div class="topbar__right">
+          <div class="stats-pill" id="stats-pill" title="Your cumulative scan stats">
+            <span id="stat-scans">0 scans</span>
+            <span class="stats-pill__sep">·</span>
+            <span id="stat-best">Best: —</span>
+            <span class="stats-pill__sep">·</span>
+            <span id="stat-avg">Avg: —</span>
+          </div>
+          <span class="conn-badge" id="conn-badge" title="Anna Runtime status">
+            <span class="conn-dot" id="conn-dot"></span>
+            <span id="conn-label">Connecting…</span>
+          </span>
+          <button class="icon-btn" id="theme-toggle" type="button" title="Switch Dark / Light Theme" aria-label="Switch Theme">
+            🌓
+          </button>
+        </div>
+      </header>
+
+      <!-- 1-Click Starter Presets Bar (Fastest path to a Qualified App Run) -->
+      <section class="presets-bar" aria-label="Quick Sample Role Presets">
+        <div class="presets-bar__label">
+          <span>⚡ 1-Click Role Presets:</span>
+          <small>Load a sample resume &amp; JD to test immediately</small>
+        </div>
+        <div class="presets-bar__chips">
+          <button class="preset-chip is-active" data-preset="ai-engineer" type="button">
+            🤖 Senior AI Agents Engineer
+          </button>
+          <button class="preset-chip" data-preset="data-scientist" type="button">
+            📊 Staff ML &amp; Data Scientist
+          </button>
+          <button class="preset-chip" data-preset="product-manager" type="button">
+            🚀 AI Product Manager
+          </button>
+          <button class="preset-chip preset-chip--ghost" id="clear-inputs-btn" type="button">
+            ✍️ Blank / Paste My Own
+          </button>
+        </div>
+      </section>
+
+      <!-- Status Toast / Notification Banner -->
+      <div class="status-banner" id="status-banner" hidden>
+        <span id="status-text">Ready</span>
+      </div>
+
+      <!-- Main Two-Column Workbench -->
+      <main class="workbench">
+        <!-- Left Column: Inputs + History -->
+        <section class="panel panel--inputs">
+          <div class="panel__head">
+            <h2>1. Application Inputs</h2>
+            <span class="muted" id="word-count-label">0 words</span>
+          </div>
+
+          <div class="meta-row">
+            <div class="field">
+              <label for="role-input">Target Role Title</label>
+              <input
+                id="role-input"
+                type="text"
+                maxlength="120"
+                placeholder="e.g. Senior Full-Stack AI Engineer"
+                autocomplete="off"
+              />
+            </div>
+            <div class="field">
+              <label for="company-input">Target Company</label>
+              <input
+                id="company-input"
+                type="text"
+                maxlength="100"
+                placeholder="e.g. Anna Labs"
+                autocomplete="off"
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field__label-row">
+              <label for="resume-input">Your Resume (Paste text or bullets)</label>
+              <span class="field__hint" id="resume-bullet-count">0 bullets detected</span>
+            </div>
+            <textarea
+              id="resume-input"
+              rows="8"
+              placeholder="Paste your resume summary, skills, and work experience bullets here..."
+              spellcheck="false"
+            ></textarea>
+          </div>
+
+          <div class="field">
+            <div class="field__label-row">
+              <label for="jd-input">Target Job Description (JD)</label>
+              <span class="field__hint">ATS requirements &amp; keywords</span>
+            </div>
+            <textarea
+              id="jd-input"
+              rows="6"
+              placeholder="Paste the target job description requirements and responsibilities here..."
+              spellcheck="false"
+            ></textarea>
+          </div>
+
+          <div class="primary-actions">
+            <button class="btn btn--primary btn--lg" id="scan-btn" type="button">
+              🔍 Run ATS Match Scan
+            </button>
+            <button class="btn btn--secondary" id="quick-rewrite-btn" type="button" title="Jump straight to XYZ bullet rewrites">
+              ✨ Optimize Bullets
+            </button>
+          </div>
+
+          <!-- Scan History Card -->
+          <div class="history-box">
+            <div class="history-box__head">
+              <h3>Recent Scans</h3>
+              <button class="link-btn" id="clear-history-btn" type="button">Clear</button>
+            </div>
+            <ul class="history-list" id="history-list">
+              <li class="history-empty">No scans saved yet — click "Run ATS Match Scan" above.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- Right Column: ATS Score Gauge + Studio Tabs -->
+        <section class="panel panel--results">
+          <!-- Score Summary Header Card -->
+          <div class="score-card" id="score-card">
+            <div class="gauge-wrap">
+              <svg class="gauge" viewBox="0 0 140 140" role="img" aria-label="ATS Match Score Gauge">
+                <defs>
+                  <linearGradient id="scoreGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#6366F1" />
+                    <stop offset="50%" stop-color="#8B5CF6" />
+                    <stop offset="100%" stop-color="#10B981" />
+                  </linearGradient>
+                </defs>
+                <circle class="gauge__track" cx="70" cy="70" r="58" />
+                <circle class="gauge__fill" id="gauge-fill" cx="70" cy="70" r="58" stroke="url(#scoreGrad)" />
+              </svg>
+              <div class="gauge__center">
+                <span class="gauge__value" id="overall-score-val">—</span>
+                <span class="gauge__unit">ATS SCORE</span>
+              </div>
+            </div>
+
+            <div class="score-details">
+              <div class="score-details__head">
+                <span class="verdict-pill" id="verdict-pill">Ready to Scan</span>
+                <span class="role-tag" id="active-role-tag">Select a preset or paste your resume</span>
+              </div>
+
+              <div class="subbars">
+                <div class="subbar">
+                  <div class="subbar__top">
+                    <span>Technical Skill Match</span>
+                    <strong id="sub-tech-val">0%</strong>
+                  </div>
+                  <div class="subbar__track"><div class="subbar__fill" id="sub-tech-bar"></div></div>
+                </div>
+                <div class="subbar">
+                  <div class="subbar__top">
+                    <span>JD Keyword Alignment</span>
+                    <strong id="sub-kw-val">0%</strong>
+                  </div>
+                  <div class="subbar__track"><div class="subbar__fill" id="sub-kw-bar"></div></div>
+                </div>
+                <div class="subbar">
+                  <div class="subbar__top">
+                    <span>Quantified Impact (XYZ)</span>
+                    <strong id="sub-quant-val">0%</strong>
+                  </div>
+                  <div class="subbar__track"><div class="subbar__fill" id="sub-quant-bar"></div></div>
+                </div>
+                <div class="subbar">
+                  <div class="subbar__top">
+                    <span>ATS Structure &amp; Readiness</span>
+                    <strong id="sub-ats-val">0%</strong>
+                  </div>
+                  <div class="subbar__track"><div class="subbar__fill" id="sub-ats-bar"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive Studio Navigation Tabs -->
+          <nav class="studio-tabs" role="tablist" aria-label="Career Studio Tools">
+            <button class="tab-btn is-active" data-tab="radar" role="tab" aria-selected="true" type="button">
+              🎯 Keyword Radar
+            </button>
+            <button class="tab-btn" data-tab="bullets" role="tab" aria-selected="false" type="button">
+              ✨ XYZ Bullet Rewriter
+            </button>
+            <button class="tab-btn" data-tab="cover" role="tab" aria-selected="false" type="button">
+              ✉️ Cover Letter &amp; DM
+            </button>
+            <button class="tab-btn" data-tab="interview" role="tab" aria-selected="false" type="button">
+              🎙️ STAR Interview Prep
+            </button>
+          </nav>
+
+          <!-- Tab 1: Keyword Radar & Action Checklist -->
+          <div class="tab-pane is-active" id="tab-radar" role="tabpanel">
+            <div class="priority-box" id="priority-box">
+              <h3>🚀 Top 3 Actions to Boost Your ATS Score</h3>
+              <ol class="priority-list" id="priority-list">
+                <li>Click <strong>Run ATS Match Scan</strong> to generate your personalized ATS action plan.</li>
+              </ol>
+            </div>
+
+            <div class="kw-grid">
+              <div class="kw-card">
+                <div class="kw-card__head">
+                  <h3>✅ Matched JD Keywords</h3>
+                  <span class="badge badge--success" id="matched-count-badge">0</span>
+                </div>
+                <div class="chip-cloud" id="matched-chips">
+                  <span class="empty-chip">Run a scan to view matched skills</span>
+                </div>
+              </div>
+
+              <div class="kw-card">
+                <div class="kw-card__head">
+                  <h3>⚠️ Missing JD Keywords to Add</h3>
+                  <span class="badge badge--warn" id="missing-count-badge">0</span>
+                </div>
+                <div class="missing-list" id="missing-list">
+                  <span class="empty-chip">Run a scan to detect missing high-priority skills</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="checks-card">
+              <h3>📋 ATS Section &amp; Formatting Audit</h3>
+              <div class="checks-grid" id="checks-grid">
+                <div class="check-item">Run a scan to verify contact links, section headers, and metric density.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 2: XYZ Formula Bullet Rewriter -->
+          <div class="tab-pane" id="tab-bullets" role="tabpanel" hidden>
+            <div class="pane-toolbar">
+              <div>
+                <h3>✨ Google XYZ Formula Bullet Optimizer</h3>
+                <p class="muted">Transforms experience bullets into measurable "Accomplished [X] as measured by [Y], by doing [Z]" statements infused with missing JD keywords.</p>
+              </div>
+              <div class="pane-toolbar__btns">
+                <button class="btn btn--primary" id="run-bullets-btn" type="button">
+                  ⚡ Refresh XYZ Rewrites
+                </button>
+                <button class="btn btn--ghost" id="copy-all-bullets-btn" type="button">
+                  📋 Copy All Upgraded
+                </button>
+              </div>
+            </div>
+            <div class="bullets-list" id="bullets-list">
+              <p class="empty-state">Click <strong>Refresh XYZ Rewrites</strong> or run an ATS scan to generate upgraded resume bullets.</p>
+            </div>
+          </div>
+
+          <!-- Tab 3: Cover Letter & Cold Outreach -->
+          <div class="tab-pane" id="tab-cover" role="tabpanel" hidden>
+            <div class="pane-toolbar">
+              <div>
+                <h3>✉️ Tailored Cover Letter &amp; Recruiter Outreach</h3>
+                <p class="muted">Weaves your matched skills and top quantified achievements into a role-specific cover letter and cold DM.</p>
+              </div>
+              <div class="pane-toolbar__btns">
+                <select id="cover-tone-select" class="select-input" aria-label="Cover letter tone">
+                  <option value="modern">Modern &amp; High-Impact</option>
+                  <option value="technical">Deep Technical</option>
+                  <option value="executive">Executive &amp; Strategic</option>
+                </select>
+                <button class="btn btn--primary" id="run-cover-btn" type="button">
+                  ✍️ Generate Cover Letter
+                </button>
+              </div>
+            </div>
+
+            <div class="cover-output" id="cover-output">
+              <p class="empty-state">Select a tone and click <strong>Generate Cover Letter</strong> to create your tailored application letter and LinkedIn DM.</p>
+            </div>
+          </div>
+
+          <!-- Tab 4: STAR Interview Prep -->
+          <div class="tab-pane" id="tab-interview" role="tabpanel" hidden>
+            <div class="pane-toolbar">
+              <div>
+                <h3>🎙️ Role-Specific Technical &amp; STAR Interview Prep</h3>
+                <p class="muted">5 targeted interview questions probing your core strengths and mitigating your exact JD skill gaps.</p>
+              </div>
+              <button class="btn btn--primary" id="run-interview-btn" type="button">
+                🎯 Generate 5 Interview Questions
+              </button>
+            </div>
+
+            <div class="interview-list" id="interview-list">
+              <p class="empty-state">Click <strong>Generate 5 Interview Questions</strong> to build your personalized STAR interview prep deck.</p>
+            </div>
+          </div>
+
+          <!-- Footer Anna Coach Integration Bar -->
+          <footer class="coach-bar">
+            <div class="coach-bar__info">
+              <strong>🤖 Anna Career Coach Skill</strong>
+              <span>Send your scan to Anna chat for interactive mock interviews or deeper tailoring.</span>
+            </div>
+            <div class="coach-bar__actions">
+              <button class="btn btn--ghost" id="pin-artifact-btn" type="button">
+                📌 Pin Scan Card
+              </button>
+              <button class="btn btn--secondary" id="ask-coach-btn" type="button">
+                💬 Ask Anna Coach
+              </button>
+            </div>
+          </footer>
+        </section>
+      </main>
+    </div>
+
+    <script src="anna-tool-ids.js" defer></script>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

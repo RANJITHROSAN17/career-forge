@@ -1,0 +1,23 @@
+[project]
+name = "tool-test-career-engine-12345678"
+version = "1.0.1"
+description = "Career Engine — Executa stdio tool plugin for the Career Forge Anna App"
+requires-python = ">=3.10"
+authors = [{ name = "Career Forge Builder" }]
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+]
+
+[project.scripts]
+"tool-test-career-engine-12345678" = "career_engine_plugin:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["career_engine_plugin"]

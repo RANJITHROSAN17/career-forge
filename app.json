@@ -1,0 +1,24 @@
+{
+  "slug": "career-forge",
+  "name": "Career Forge — AI Resume & Job Match Studio",
+  "version": "1.0.1",
+  "tagline": "Instant ATS match scoring, XYZ bullet rewrites, cover letters & interview prep.",
+  "description": "Career Forge turns Anna into your personal AI Career & ATS Optimization Studio. Paste any resume and job description (or try a 1-click role preset) to get an instant, transparent ATS compatibility breakdown, missing keyword radar, quantified XYZ bullet rewrites, tailored cover letters, and STAR interview prep questions.\n\n**What's inside**\n\n- **ATS Match & Keyword Radar** — Deterministic multi-factor scoring across Technical Skills, Role Keywords, Quantified Impact, and ATS Formatting.\n- **XYZ Bullet Optimizer** — Rewrites weak experience lines into measurable, high-impact achievement statements infused with missing job keywords.\n- **Tailored Cover Letter & Outreach Generator** — Crafts role-specific cover letters and recruiter outreach messages in one click.\n- **Targeted STAR Interview Prep** — Generates technical and behavioral interview questions focused on your exact skill gaps.\n- **Persistent Scan History** — Automatically tracks your scan history, best match scores, and drafts via Anna Storage and the Career Engine plugin.\n\n**How to use**\n\nOpen Career Forge from your Anna App Deck or mention `#career-forge` in any chat. Click any role preset or paste your resume and target job description, then click **Run ATS Match Scan**.",
+  "category": "productivity",
+  "logo_file": "./assets/logo.png",
+  "cover_url": "",
+  "screenshots": [
+    "./assets/shot-1.png",
+    "./assets/shot-2.png",
+    "./assets/shot-3.png",
+    "./assets/shot-4.png"
+  ],
+  "homepage_url": "https://github.com/whtcjdtc2007/anna-executa-examples",
+  "support_url": "https://discord.gg/7ftTdsdMMz",
+  "privacy_url": "https://anna.partners/privacy",
+  "bundled_executas": {
+    "career-engine": {
+      "path": "./executas/career-engine-python"
+    }
+  }
+}

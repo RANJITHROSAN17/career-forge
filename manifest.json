@@ -1,0 +1,74 @@
+{
+  "schema": 3,
+  "required_executas": [
+    {
+      "tool_id": "bundled:career-engine",
+      "min_version": "1.0.0",
+      "version": "latest"
+    }
+  ],
+  "optional_executas": [],
+  "storage": {
+    "kv": true,
+    "files": false,
+    "scopes": {
+      "user": "rw",
+      "tool": "rw"
+    }
+  },
+  "system_prompt_addendum": "The user has Career Forge (AI Resume & Job Match Studio) open. Treat the career-engine tool as the source of truth for resume scans, ATS scores, bullet rewrites, cover letters, and interview prep. Call the career-engine Executa with method='career' and arguments {action:'get_state'} before commenting on the user's latest scan, or call {action:'analyze', resume_text, job_description, role_title} when the user shares a resume and job description. Follow the Career Coach skill for constructive, specific, metrics-driven career advice.",
+  "user_message_prefix_template": "[Career Forge] {user_message}",
+  "tags": [
+    "productivity",
+    "career",
+    "resume",
+    "ats",
+    "job-search",
+    "interview-prep"
+  ],
+  "ui": {
+    "bundle": {
+      "format": "static-spa",
+      "entry": "index.html",
+      "external_origins": []
+    },
+    "form_factors": ["desktop", "mobile"],
+    "views": [
+      {
+        "name": "main",
+        "title": "Career Forge — AI Resume & Job Match Studio",
+        "default": true,
+        "entry": "index.html",
+        "min_size": { "w": 420, "h": 560 },
+        "default_size": { "w": 960, "h": 720 },
+        "max_size": { "w": 1600, "h": 1100 },
+        "resizable": true,
+        "movable": true,
+        "single_instance": true,
+        "icon": "icon.svg"
+      }
+    ],
+    "host_api": {
+      "tools": ["required:*"],
+      "chat": ["write_message", "append_artifact"],
+      "artifact": [],
+      "llm": [],
+      "fs": [],
+      "storage": ["get", "set", "delete", "list"],
+      "prefs": [],
+      "window": ["set_title"]
+    },
+    "csp_overrides": {
+      "img-src": ["'self'", "data:", "blob:"],
+      "font-src": ["'self'", "data:"],
+      "style-src": ["'self'"],
+      "script-src": ["'self'"]
+    },
+    "state_merge": "last_writer_wins"
+  },
+  "dev": {
+    "fixtures": [],
+    "seed_storage": {},
+    "user_id": 1
+  }
+}
