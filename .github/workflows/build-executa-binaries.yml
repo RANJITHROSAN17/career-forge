@@ -135,7 +135,7 @@ jobs:
           NAME: career-engine
           VERSION: ${{ inputs.version }}
           PLATFORM: linux-x86_64
-          IMAGE: quay.io/pypa/manylinux_2_28_x86_64
+          IMAGE: python:3.12-bullseye
         run: |
           set -euo pipefail
 
