@@ -1,24 +1,25 @@
 # =============================================================================
-# Career Forge — Executa multi-platform binary build
+# Career Forge — Executa multi-platform binary build  (SELF-CONTAINED)
 # =============================================================================
-# Builds the bundled Python Executa (`career-engine`) into self-contained
-# binaries for the 4 platforms the Anna Agent installs from:
+# Builds the bundled Python Executa (`career-engine`) into one-file binaries for
+# the 4 platforms the Anna Agent installs from:
 #
-#   darwin-arm64     -> macOS Apple Silicon   (tar.gz)
-#   darwin-x86_64    -> macOS Intel           (tar.gz)
-#   linux-x86_64     -> Linux x86_64         (tar.gz)  <-- REQUIRED: this is the
-#                                                          binary the Anna Cloud
-#                                                          Agent runs.
-#   windows-x86_64   -> Windows x86_64       (zip)
+#   darwin-arm64    -> macOS Apple Silicon  (tar.gz)
+#   darwin-x86_64   -> macOS Intel          (tar.gz)
+#   linux-x86_64    -> Linux x86_64         (tar.gz)  <-- REQUIRED. This is the
+#                                                        binary the Anna Cloud
+#                                                        Agent runs. Built inside
+#                                                        manylinux_2_28 so it only
+#                                                        needs glibc >= 2.28.
+#   windows-x86_64  -> Windows x86_64       (zip)
 #
 # Trigger: Actions -> "Build Career Engine Executa Binaries" -> Run workflow
-#          (enter the version that matches executas/career-engine-python/executa.json)
+#          (version must match executas/career-engine-python/executa.json)
 #
-# Output: a GitHub Release tagged `career-engine-v<version>` holding the 4
-#         archives plus a `.sha256` sidecar for each.
+# Output: GitHub Release `career-engine-v<version>` with 4 archives + .sha256
 #
-# Then run locally:
-#   pwsh ./scripts/download-binaries.ps1 -Version 1.0.1 -Repo <owner>/<repo>
+# Then locally:
+#   powershell -ExecutionPolicy Bypass -File .\scripts\download-binaries.ps1 -Version 1.0.1 -Repo RANJITHROSAN17/career-forge
 #   anna-app apps publish
 # =============================================================================
 
@@ -50,14 +51,12 @@ jobs:
           # macOS Apple Silicon (macos-15 = current Apple Silicon image)
           - os: macos-15
             platform: darwin-arm64
-          # macOS Intel. NOTE: macos-13 is RETIRED — a retired label does not
+          # macOS Intel. NOTE: macos-13 is RETIRED - a retired label does not
           # fail, it just queues forever. macos-15-intel is the supported
           # Intel label (available until Aug 2027).
           - os: macos-15-intel
             platform: darwin-x86_64
-          # Linux x86_64 — built inside a manylinux_2_28 container so the
-          # resulting binary only needs glibc >= 2.28. This is what makes it
-          # run on the Anna Cloud Agent regardless of the host distro.
+          # Linux x86_64 - built inside manylinux_2_28 for glibc compatibility.
           - os: ubuntu-latest
             platform: linux-x86_64
           # Windows x86_64
@@ -68,91 +67,131 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ---------------------------------------------------------------- python
       - name: Set up Python 3.12
         if: matrix.os != 'ubuntu-latest'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install PyInstaller
-        if: matrix.os != 'ubuntu-latest'
-        run: python -m pip install --upgrade pip "pyinstaller>=6.10,<7"
-
-      # ------------------------------------------------------------- macOS
-      - name: Build + smoke-test + package (macOS)
-        if: runner.os == 'macOS'
-        working-directory: ${{ env.EXECUTA_DIR }}
+      # ===================================================================
+      # macOS + Windows
+      # Runs in bash on BOTH. Windows git-bash is deliberate: in PowerShell,
+      # any native-command stderr (this plugin prints a startup banner to
+      # stderr) becomes a terminating error under $ErrorActionPreference
+      # = 'Stop' and kills the step.
+      # ===================================================================
+      - name: Build + smoke-test + package (macOS / Windows)
+        if: runner.os != 'Linux'
+        shell: bash
         env:
           NAME: career-engine
           VERSION: ${{ inputs.version }}
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
+          cd "${{ env.EXECUTA_DIR }}"
+          python -m pip install --upgrade pip "pyinstaller>=6.10,<7"
           python -m PyInstaller --onefile --name "$NAME" --clean --noconfirm \
             --log-level WARN career_engine_plugin.py
-          echo '{"jsonrpc":"2.0","id":1,"method":"describe"}' | "./dist/$NAME" > /tmp/describe.json
-          cat /tmp/describe.json
-          python -c "import json;d=json.load(open('/tmp/describe.json'));assert 'result' in d;print('describe smoke test OK')"
-          cd dist
-          tar czf "$NAME-$VERSION-$PLATFORM.tar.gz" "$NAME"
-          python -c "import hashlib,sys;h=hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest();open(sys.argv[1]+'.sha256','w').write(h+'  '+sys.argv[1]+chr(10))" "$NAME-$VERSION-$PLATFORM.tar.gz"
 
-      # ------------------------------------------------ Linux (manylinux_2_28)
+          BIN="./dist/$NAME"
+          if [[ "$PLATFORM" == windows-* ]]; then BIN="./dist/$NAME.exe"; fi
+
+          mkdir -p .build-tmp
+          echo "== smoke test: JSON-RPC describe over stdio ($BIN)"
+          set +e
+          printf '{"jsonrpc":"2.0","id":1,"method":"describe"}\n' | "$BIN" \
+            > .build-tmp/describe.json 2> .build-tmp/describe.err
+          code=$?
+          set -e
+          echo "--- exit: $code"
+          echo "--- stdout:"; cat .build-tmp/describe.json
+          echo "--- stderr:"; cat .build-tmp/describe.err
+
+          # Relative path on purpose: Windows python cannot resolve "/tmp".
+          python -c "import json,pathlib;raw=pathlib.Path('.build-tmp/describe.json').read_text(encoding='utf-8',errors='replace').strip();assert raw,'binary produced no stdout';d=json.loads(raw);assert 'result' in d,d;print('describe smoke test OK')"
+
+          cd dist
+          if [[ "$PLATFORM" == windows-* ]]; then
+            python -m zipfile -c "$NAME-$VERSION-$PLATFORM.zip" "$NAME.exe"
+            ART="$NAME-$VERSION-$PLATFORM.zip"
+          else
+            tar czf "$NAME-$VERSION-$PLATFORM.tar.gz" "$NAME"
+            ART="$NAME-$VERSION-$PLATFORM.tar.gz"
+          fi
+          python -c "import hashlib,pathlib,sys;p=pathlib.Path(sys.argv[1]);p.with_name(p.name+'.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+chr(10),encoding='utf-8');print('sha256 written for',p.name)" "$ART"
+          ls -la
+
+      # ===================================================================
+      # Linux x86_64 - manylinux_2_28 container
+      # The build script is written with a quoted heredoc (no shell expansion)
+      # to $RUNNER_TEMP and then mounted into the container, which keeps it
+      # free of YAML/nested-quoting problems.
+      # ===================================================================
       - name: Build + smoke-test + package (linux-x86_64, manylinux_2_28)
-        if: matrix.os == 'ubuntu-latest'
+        if: runner.os == 'Linux'
+        shell: bash
         env:
           NAME: career-engine
           VERSION: ${{ inputs.version }}
           PLATFORM: linux-x86_64
+          IMAGE: quay.io/pypa/manylinux_2_28_x86_64
         run: |
           set -euo pipefail
-          docker run --rm -e NAME -e VERSION -e PLATFORM \
+
+          cat > "$RUNNER_TEMP/build-executa.sh" <<'SCRIPT_EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          echo "== platform: $PLATFORM   version: $VERSION"
+          PY="$(ls -d /opt/python/cp3*/bin/python 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -z "$PY" ] || [ ! -x "$PY" ]; then PY=python3; fi
+          echo "== python: $PY ($("$PY" -V 2>&1))"
+
+          cd /io/executas/career-engine-python
+          "$PY" -m pip install --upgrade pip "pyinstaller>=6.10,<7"
+          "$PY" -m PyInstaller --onefile --name "$NAME" --clean --noconfirm \
+            --log-level WARN career_engine_plugin.py
+
+          echo "== smoke test: JSON-RPC describe over stdio"
+          mkdir -p .build-tmp
+          set +e
+          printf '{"jsonrpc":"2.0","id":1,"method":"describe"}\n' | "./dist/$NAME" \
+            > .build-tmp/describe.json 2> .build-tmp/describe.err
+          code=$?
+          set -e
+          echo "--- exit: $code"
+          echo "--- stdout:"; cat .build-tmp/describe.json
+          echo "--- stderr:"; cat .build-tmp/describe.err
+          "$PY" -c "import json,pathlib;raw=pathlib.Path('.build-tmp/describe.json').read_text(encoding='utf-8',errors='replace').strip();assert raw,'binary produced no stdout';d=json.loads(raw);assert 'result' in d,d;print('describe smoke test OK')"
+
+          cd dist
+          tar czf "$NAME-$VERSION-$PLATFORM.tar.gz" "$NAME"
+          "$PY" -c "import hashlib,pathlib,sys;p=pathlib.Path(sys.argv[1]);p.with_name(p.name+'.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+chr(10),encoding='utf-8');print('sha256 written for',p.name)" "$NAME-$VERSION-$PLATFORM.tar.gz"
+          ls -la
+          SCRIPT_EOF
+
+          echo "== docker:"
+          docker version || true
+          echo "== pulling $IMAGE"
+          docker pull "$IMAGE"
+
+          # --entrypoint /bin/bash is explicit: if the image ever declares an
+          # ENTRYPOINT, our command would otherwise be swallowed by it.
+          docker run --rm \
+            --entrypoint /bin/bash \
+            -e NAME -e VERSION -e PLATFORM \
             -v "$GITHUB_WORKSPACE:/io" \
-            -w "/io/${{ env.EXECUTA_DIR }}" \
-            quay.io/pypa/manylinux_2_28_x86_64 \
-            bash -c '
-              set -euo pipefail
-              PY=/opt/python/cp312-cp312/bin/python
-              [ -x "$PY" ] || PY=$(ls -d /opt/python/cp3*/bin/python | sort -V | tail -1)
-              echo "Building with $PY ($("$PY" -V 2>&1))"
-              "$PY" -m pip install --upgrade pip "pyinstaller>=6.10,<7"
-              "$PY" -m PyInstaller --onefile --name "$NAME" --clean --noconfirm \
-                --log-level WARN career_engine_plugin.py
-              echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"describe\"}" | "./dist/$NAME" > /tmp/describe.json
-              cat /tmp/describe.json
-              "$PY" -c "import json;d=json.load(open(\"/tmp/describe.json\"));assert \"result\" in d;print(\"describe smoke test OK\")"
-              cd dist
-              tar czf "$NAME-$VERSION-$PLATFORM.tar.gz" "$NAME"
-              "$PY" -c "import hashlib,sys;h=hashlib.sha256(open(sys.argv[1],\"rb\").read()).hexdigest();open(sys.argv[1]+\".sha256\",\"w\").write(h+\"  \"+sys.argv[1]+chr(10))" "$NAME-$VERSION-$PLATFORM.tar.gz"
-              chmod -R a+rX .
-            '
+            -v "$RUNNER_TEMP:/scripts" \
+            -w /io \
+            "$IMAGE" \
+            /scripts/build-executa.sh
 
-      # ------------------------------------------------------------- Windows
-      - name: Build + smoke-test + package (Windows)
-        if: runner.os == 'Windows'
-        working-directory: ${{ env.EXECUTA_DIR }}
-        shell: pwsh
-        env:
-          NAME: career-engine
-          VERSION: ${{ inputs.version }}
-          PLATFORM: windows-x86_64
-        run: |
-          $ErrorActionPreference = "Stop"
-          python -m PyInstaller --onefile --name $env:NAME --clean --noconfirm --log-level WARN career_engine_plugin.py
-          if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
-          $desc = '{"jsonrpc":"2.0","id":1,"method":"describe"}' | .\dist\$env:NAME.exe
-          $desc | Out-String | Write-Host
-          $json = ($desc | Out-String) | ConvertFrom-Json
-          if (-not $json.result) { throw "describe smoke test failed" }
-          Write-Host "describe smoke test OK"
-          $archive = "dist\$env:NAME-$env:VERSION-$env:PLATFORM.zip"
-          Compress-Archive -Path "dist\$env:NAME.exe" -DestinationPath $archive -Force
-          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
-          $file = Split-Path $archive -Leaf
-          "$hash  $file" | Out-File -FilePath "$archive.sha256" -Encoding ascii
+          # Files created inside the container are root-owned; make them
+          # readable so actions/upload-artifact (runner user) can read them.
+          sudo chmod -R a+rX "$GITHUB_WORKSPACE/${{ env.EXECUTA_DIR }}" 2>/dev/null || true
+          ls -la "$GITHUB_WORKSPACE/${{ env.EXECUTA_DIR }}/dist"
 
-      # -------------------------------------------------------------- artifacts
+      # -------------------------------------------------------------- artifact
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
