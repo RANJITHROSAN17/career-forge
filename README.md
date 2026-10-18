@@ -9,7 +9,7 @@ keywords are costing you the interview, and rewrite your bullets in XYZ format �
 
 <br>
 
-![Version](https://img.shields.io/badge/version-1.0.2-7c5cff?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.0.3-7c5cff?style=flat-square)
 ![Anna App](https://img.shields.io/badge/Anna%20App-marketplace-00b8d9?style=flat-square)
 ![Category](https://img.shields.io/badge/category-productivity-ff8a3d?style=flat-square)
 ![Executa](https://img.shields.io/badge/executa-Python%203.12-3776ab?style=flat-square)
@@ -41,8 +41,8 @@ Career Forge is built to be **transparent and actionable**:
 - **It fixes it with you.** One click turns weak bullets into quantified XYZ statements
   infused with the exact keywords you're missing.
 
-Everything runs **locally on your machine** through a bundled Python Executa. Your resume
-never leaves your device to be scored.
+Scoring runs in a bundled Python Executa on your Anna Agent (local or Cloud).
+Writing generation runs through Anna’s LLM and sends your supplied career data to it.
 
 ---
 
@@ -62,9 +62,9 @@ Each scan returns an overall score, a plain-language verdict, a tier, and the fu
 matched/missing keyword breakdown.
 
 ### ✍️ XYZ Bullet Optimizer
-Rewrites vague experience lines into measurable achievement statements —
-*"Worked on microservices"* becomes *"Architected 6 Python microservices handling 85,000+
-daily requests at 99.95% uptime"* — seeded with the keywords you were missing.
+Uses Anna’s LLM to rewrite resume-supported experience in XYZ format. Unknown metrics
+should remain `[add verified metric]`; missing JD skills must not become claimed experience.
+Review every draft before use.
 
 ### 💌 Tailored Cover Letter & Outreach
 Generates role-specific cover letters in three tones (**modern**, **technical**,
@@ -106,8 +106,10 @@ Career Engine plugin's local state file.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**No API keys. No server. No LLM cost.** The engine is deterministic Python — scoring,
-keyword extraction, and rewrites all run offline on your device.
+**No separate API key.** Scoring and keyword extraction are deterministic Python.
+The in-app writing buttons call `anna.llm.complete`; Anna’s model usage policies apply.
+The Python engine retains legacy template-writing actions for compatibility; these are
+not AI and are no longer used by the UI to generate writing.
 
 ---
 
@@ -186,11 +188,11 @@ need Python installed.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\download-binaries.ps1 `
-  -Version 1.0.2 -Repo RANJITHROSAN17/career-forge
+  -Version 1.0.3 -Repo RANJITHROSAN17/career-forge
 ```
 
 ```bash
-./scripts/download-binaries.sh --version 1.0.2 --repo RANJITHROSAN17/career-forge
+./scripts/download-binaries.sh --version 1.0.3 --repo RANJITHROSAN17/career-forge
 ```
 
 | Platform | Archive | Entrypoint |
@@ -209,7 +211,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\download-binaries.ps1 `
 anna-app validate --strict
 anna-app apps publish          # push + cut (freezes the Executa + uploads binaries)
 anna-app apps submit-review career-forge
-anna-app apps release 1.0.2    # after approval — this is what makes it live
+anna-app apps release 1.0.3    # after approval — this is what makes it live
 ```
 
 > Remember: `publish` ≠ public, and `approved` ≠ public. You must run `release` after
@@ -245,12 +247,26 @@ python3 -m pytest tests/ -v
 
 ## 🔒 Privacy
 
-- Scoring, keyword extraction, and rewriting run **entirely on your device** — no resume
-  text is transmitted anywhere by the Executa.
-- The plugin keeps a local state file at `~/.anna/career-forge/state.json`.
-- Scan drafts are saved in your app's Anna Storage namespace, readable only by this app.
-- Declared host capabilities: **none**. The Executa asks for no filesystem, network, or LLM
-  access beyond its own stdio channel.
+- Scoring and keyword extraction run on the Anna Agent, including a remote Cloud Agent.
+- AI writing sends resume, job description, role, company and selected tone through Anna’s LLM.
+- The plugin keeps scan state at `~/.anna/career-forge/state.json` on the Agent.
+- Scan drafts are saved in the app's Anna Storage namespace.
+- The SPA declares `llm: ["complete"]`. Chat access and the two ineffective chat buttons have been removed.
+- Anna’s model usage and privacy policies apply. AI drafts require human review.
+
+## AI feature disclosure (review response)
+
+| Feature | Implementation |
+|---|---|
+| ATS scores, keyword radar, section checks, bullet audits | Deterministic bundled Python; no LLM |
+| XYZ and keyword-first rewrites | Anna LLM, JSON validated and rendered in Bullets tab |
+| Cover letter and recruiter outreach | Anna LLM, requested tone, rendered in Cover tab |
+| Five interview questions and STAR coaching guides | Anna LLM, rendered in Interview tab |
+
+The app passes current editor inputs to `anna.llm.complete` through `bundle/ai.mjs`.
+Instructions require resume-supported claims and metric placeholders. Outputs are validated,
+escaped for display, and never silently replaced by Python templates after LLM failures.
+No chat handoff is advertised or attempted. See `REVIEW-NOTES.md` for verification steps.
 
 ---
 

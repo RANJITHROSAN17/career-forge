@@ -1,0 +1,6 @@
+{
+  "name": "career-forge-tests",
+  "private": true,
+  "scripts": {"test": "node --test tests/*.mjs", "test:python": "python3 -m unittest discover -s tests -v"},
+  "devDependencies": {"jsdom": "26.1.0"}
+}
