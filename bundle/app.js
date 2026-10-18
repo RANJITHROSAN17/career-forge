@@ -12,6 +12,7 @@
  *   anna.window.set_title({ title })
  */
 
+import { withDeadline } from "./async.mjs";
 import { generateWriting } from "./ai.mjs";
 
 import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
@@ -177,7 +178,7 @@ async function init() {
   loadPreset("ai-engineer", false);
 
   try {
-    anna = await AnnaAppRuntime.connect();
+    anna = await withDeadline(() => AnnaAppRuntime.connect(), 15000, "Anna connection timed out. Reload the app inside Anna.");
     setConnectionStatus(true, "Anna Runtime Connected");
   } catch (err) {
     setConnectionStatus(false, "Preview Mode");
@@ -187,7 +188,7 @@ async function init() {
   // Restore saved draft from Anna Storage if present
   if (anna) {
     try {
-      const saved = await anna.storage.get({ key: STORAGE_DRAFT_KEY });
+      const saved = await withDeadline(() => anna.storage.get({ key: STORAGE_DRAFT_KEY }), 5000, "Draft storage timed out.");
       const draft = saved?.value || saved?.result?.value;
       if (draft && typeof draft === "object" && draft.resume) {
         els.roleInput.value = draft.role || els.roleInput.value;
@@ -329,12 +330,13 @@ async function callCareerEngine(action, extraArgs = {}) {
   if (isBusy) return null;
   isBusy = true;
   setButtonsDisabled(true);
+  showStatus(action === "get_state" ? "Connecting to Career Engine…" : "Running Career Engine…", "busy");
   try {
-    const raw = await anna.tools.invoke({
+    const raw = await withDeadline(() => anna.tools.invoke({
       tool_id: TOOL_ID,
       method: TOOL_METHOD,
       args: { action, ...extraArgs },
-    });
+    }), 45000, "Career Engine did not respond within 45 seconds. Check that it is installed and running on your Agent, then retry.");
     return unwrapToolPayload(raw);
   } finally {
     isBusy = false;
@@ -351,10 +353,12 @@ async function refreshStateOrAutoScan() {
       renderScanResult(state.active_scan);
       renderStatsAndHistory(state.stats, state.recent);
       resetWritingResults();
+      showStatus("Career Engine ready. Saved scan restored.", "success");
       return;
     }
-  } catch {
-    /* proceed to initial scan */
+  } catch (err) {
+    showStatus(`Startup check failed: ${err?.message || err} Click Run ATS Match Scan to retry.`, "error");
+    return;
   }
   await runScan(true);
 }
@@ -392,15 +396,15 @@ async function runScan(silent = false) {
 
     if (anna) {
       try {
-        await anna.window.set_title({
+        await withDeadline(() => anna.window.set_title({
           title: `Career Forge · ${data.scan.overall_score}% Match (${role_title})`,
-        });
+        }), 3000, "Window title update timed out.");
       } catch {
         /* ignore */
       }
     }
 
-    if (!silent) {
+    {
       showStatus(
         `Scan complete! ATS Match Score: ${data.scan.overall_score}% for ${role_title}.`,
         "success"
@@ -415,12 +419,13 @@ async function callWritingAI(action, inputs) {
   if (isBusy) return null;
   isBusy = true;
   setButtonsDisabled(true);
+  showStatus("Anna AI is generating your draft… This may take up to 2 minutes.", "busy");
   try {
-    return await generateWriting(anna, action, {
+    return await withDeadline(() => generateWriting(anna, action, {
       role_title: els.roleInput.value.trim(),
       company_name: els.companyInput.value.trim(),
       ...inputs,
-    });
+    }), 120000, "Anna AI did not respond within 2 minutes. No draft was generated. Check model access before retrying; the host request may still be running.");
   } finally {
     isBusy = false;
     setButtonsDisabled(false);
@@ -764,6 +769,7 @@ function showStatus(msg, kind = "info") {
   els.statusBanner.dataset.kind = kind;
   els.statusText.textContent = msg;
   clearTimeout(statusTimeout);
+  if (kind === "busy") return;
   statusTimeout = setTimeout(() => {
     els.statusBanner.hidden = true;
   }, 4500);

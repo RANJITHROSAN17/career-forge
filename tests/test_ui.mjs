@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
+import {withDeadline} from '../bundle/async.mjs';
 import {generateWriting} from '../bundle/ai.mjs';
 
 test('fresh DOM: preset scan, custom input, all AI tabs, failure and recovery (mock host)',async()=>{
@@ -29,9 +30,9 @@ test('fresh DOM: preset scan, custom input, all AI tabs, failure and recovery (m
    return {content:{text:JSON.stringify(data)}};
   }}
  };
- w.generateWriting=generateWriting;w.AnnaAppRuntime={connect:async()=>anna};
+ w.withDeadline=withDeadline;w.generateWriting=generateWriting;w.AnnaAppRuntime={connect:async()=>anna};
  let js=await readFile(new URL('../bundle/app.js',import.meta.url),'utf8');
- js=js.replace(/^import .*;\n/gm,'');
+ js=js.replace(/^import .*;\r?\n/gm,'');
  w.eval(js);
  const settle=()=>new Promise(r=>setImmediate(r));
  const click=async(id)=>{w.document.querySelector(id).click();await settle();};
@@ -52,5 +53,24 @@ test('fresh DOM: preset scan, custom input, all AI tabs, failure and recovery (m
   assert.equal(w.document.querySelector('#run-cover-btn').disabled,false);
   deny=false;await click('#run-cover-btn');assert.ok(w.document.querySelector('#status-text').textContent.includes('generated'));
   assert.equal(w.document.querySelector('#ask-coach-btn'),null);
+ } finally {dom.window.close();}
+});
+
+test('hung startup bridge: shows error and unlocks actual UI buttons',async()=>{
+ const dom=new JSDOM(await readFile(new URL('../bundle/index.html',import.meta.url),'utf8'),{runScripts:'outside-only',url:'https://example.test/'});
+ const w=dom.window;
+ w.withDeadline=(work,ms,message)=>withDeadline(work,Math.min(ms,20),message);
+ w.generateWriting=generateWriting;
+ w.AnnaAppRuntime={connect:async()=>({storage:{get:async()=>null},tools:{invoke:()=>new Promise(()=>{})}})};
+ let js=await readFile(new URL('../bundle/app.js',import.meta.url),'utf8');
+ js=js.replace(/^import .*;\r?\n/gm,'');
+ try {
+  w.eval(js);
+  await new Promise(r=>setImmediate(r));
+  assert.equal(w.document.querySelector('#scan-btn').disabled,true,'buttons are disabled while host is pending');
+  await new Promise(r=>setTimeout(r,60));
+  for(const id of ['scan-btn','quick-rewrite-btn','run-bullets-btn','run-cover-btn','run-interview-btn']) assert.equal(w.document.getElementById(id).disabled,false,`${id} recovers after timeout`);
+  assert.ok(w.document.querySelector('#status-text').textContent.includes('Startup check failed'));
+  assert.ok(w.document.querySelector('#status-text').textContent.includes('45 seconds'));
  } finally {dom.window.close();}
 });
