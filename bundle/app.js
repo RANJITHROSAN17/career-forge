@@ -8,10 +8,11 @@
  *   anna.tools.invoke({ tool_id, method: "career", args: { action, ... } })
  *   anna.storage.get({ key })
  *   anna.storage.set({ key, value })
- *   anna.chat.write_message({ role, content })
- *   anna.chat.append_artifact({ title, content, type })
+ *   anna.llm.complete({ messages, maxTokens, temperature })
  *   anna.window.set_title({ title })
  */
+
+import { generateWriting } from "./ai.mjs";
 
 import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
 
@@ -156,8 +157,6 @@ const els = {
   coverOutput: $("#cover-output"),
   runInterviewBtn: $("#run-interview-btn"),
   interviewList: $("#interview-list"),
-  pinArtifactBtn: $("#pin-artifact-btn"),
-  askCoachBtn: $("#ask-coach-btn"),
   presetChips: $$(".preset-chip[data-preset]"),
   tabBtns: $$(".tab-btn[data-tab]"),
 };
@@ -259,8 +258,6 @@ function bindEvents() {
   els.runCoverBtn.addEventListener("click", () => runCoverLetter());
   els.runInterviewBtn.addEventListener("click", () => runInterviewPrep());
   els.clearHistoryBtn.addEventListener("click", () => clearHistory());
-  els.askCoachBtn.addEventListener("click", () => askCoachInChat());
-  els.pinArtifactBtn.addEventListener("click", () => pinScanArtifact());
 }
 
 function loadPreset(key, autoRun = false) {
@@ -353,7 +350,7 @@ async function refreshStateOrAutoScan() {
       currentScan = state.active_scan;
       renderScanResult(state.active_scan);
       renderStatsAndHistory(state.stats, state.recent);
-      renderBulletsFromScan(state.active_scan);
+      resetWritingResults();
       return;
     }
   } catch {
@@ -391,7 +388,7 @@ async function runScan(silent = false) {
     currentScan = data.scan;
     renderScanResult(data.scan);
     renderStatsAndHistory(data.stats, data.recent);
-    renderBulletsFromScan(data.scan);
+    resetWritingResults();
 
     if (anna) {
       try {
@@ -414,6 +411,22 @@ async function runScan(silent = false) {
   }
 }
 
+async function callWritingAI(action, inputs) {
+  if (isBusy) return null;
+  isBusy = true;
+  setButtonsDisabled(true);
+  try {
+    return await generateWriting(anna, action, {
+      role_title: els.roleInput.value.trim(),
+      company_name: els.companyInput.value.trim(),
+      ...inputs,
+    });
+  } finally {
+    isBusy = false;
+    setButtonsDisabled(false);
+  }
+}
+
 async function runBulletRewrites() {
   const resume_text = els.resumeInput.value.trim();
   const job_description = els.jdInput.value.trim();
@@ -423,7 +436,7 @@ async function runBulletRewrites() {
   }
   showStatus("Generating Google XYZ formula bullet rewrites…", "info");
   try {
-    const data = await callCareerEngine("rewrite_bullets", {
+    const data = await callWritingAI("rewrite_bullets", {
       resume_text,
       job_description,
     });
@@ -448,7 +461,7 @@ async function runCoverLetter() {
   }
   showStatus("Crafting tailored cover letter & recruiter cold DM…", "info");
   try {
-    const data = await callCareerEngine("cover_letter", {
+    const data = await callWritingAI("cover_letter", {
       resume_text,
       job_description,
       role_title,
@@ -474,7 +487,7 @@ async function runInterviewPrep() {
   }
   showStatus("Building role-specific STAR & technical interview deck…", "info");
   try {
-    const data = await callCareerEngine("interview_prep", {
+    const data = await callWritingAI("interview_prep", {
       resume_text,
       job_description,
       role_title,
@@ -496,49 +509,6 @@ async function clearHistory() {
     }
   } catch (err) {
     showStatus(`Could not clear history: ${err?.message || err}`, "error");
-  }
-}
-
-async function askCoachInChat() {
-  if (!anna) {
-    showStatus("Anna Chat is available when running inside Anna AI OS.", "info");
-    return;
-  }
-  const score = currentScan ? `${currentScan.overall_score}%` : "unscanned";
-  const role = els.roleInput.value.trim() || "my target role";
-  const missing =
-    currentScan?.missing_keywords?.slice(0, 4).map((m) => m.skill).join(", ") || "none";
-  try {
-    await anna.chat.write_message({
-      role: "user",
-      content: `[Career Forge] I just scored ${score} for ${role}. My top missing keywords are: ${missing}. Coach, how should I position my experience to pass the ATS and hiring manager screen?`,
-    });
-    showStatus("Sent scan context to Anna Career Coach in chat!", "success");
-  } catch (err) {
-    showStatus(`Chat message failed: ${err?.message || err}`, "error");
-  }
-}
-
-async function pinScanArtifact() {
-  if (!anna) return;
-  if (!currentScan) {
-    showStatus("Run an ATS scan first before pinning a summary card.", "error");
-    return;
-  }
-  try {
-    await anna.chat.append_artifact({
-      title: `ATS Scan: ${currentScan.role_title} (${currentScan.overall_score}%)`,
-      type: "markdown",
-      content: [
-        `### Career Forge ATS Report — ${currentScan.role_title}`,
-        `- **Overall ATS Score:** ${currentScan.overall_score}% (${currentScan.verdict})`,
-        `- **Matched Skills:** ${currentScan.matched_keywords.map((m) => m.skill).join(", ") || "None"}`,
-        `- **Missing Skills:** ${currentScan.missing_keywords.map((m) => m.skill).join(", ") || "None"}`,
-      ].join("\n"),
-    });
-    showStatus("Pinned ATS Summary Card to Anna chat!", "success");
-  } catch (err) {
-    showStatus(`Artifact pin notice: ${err?.message || err}`, "info");
   }
 }
 
@@ -620,10 +590,11 @@ function renderScanResult(scan) {
   });
 }
 
-function renderBulletsFromScan(scan) {
-  const audits = scan?.bullet_audits || [];
-  const copyBlock = audits.map((a) => `• ${a.xyz_rewrite}`).join("\n");
-  renderRewritesList(audits, copyBlock);
+function resetWritingResults() {
+  latestBulletsCopyText = "";
+  els.bulletsList.textContent = "Click Generate to create AI bullet rewrites. Verify all claims before use.";
+  els.coverOutput.textContent = "Click Generate to create an AI cover letter and outreach message.";
+  els.interviewList.textContent = "Click Generate to create AI interview questions.";
 }
 
 function renderRewritesList(rewrites, copyBlock) {
@@ -803,7 +774,7 @@ async function copyText(text, toastMsg) {
     await navigator.clipboard.writeText(text);
     showStatus(toastMsg, "success");
   } catch {
-    showStatus("Copied!", "success");
+    showStatus("Clipboard access failed. Please select and copy the text manually.", "error");
   }
 }
 
