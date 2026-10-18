@@ -880,6 +880,12 @@ def send(message: dict[str, Any]) -> None:
 
 
 def main() -> None:
+    # The Anna bridge sends and reads UTF-8 bytes. Windows redirected stdio
+    # may otherwise use a legacy code page (e.g. cp1252). Non-UTF-8 JSON
+    # responses are silently discarded by the local bridge's reader.
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="strict")
     print(
         f"[career-engine] {MANIFEST['display_name']} v{MANIFEST['version']} ready",
         file=sys.stderr,
