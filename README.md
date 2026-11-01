@@ -29,6 +29,12 @@ keywords are costing you the interview, and rewrite your bullets in XYZ format �
 
 ---
 
+## Is this the right tool for you?
+
+Use Career Forge if you already use Anna and want a transparent resume/JD comparison plus reviewable writing drafts. It is an **Anna-hosted app**, not a standalone resume website: opening `bundle/index.html` outside that host does not provide its tool, storage or model APIs.
+
+The “ATS” score is this project’s deterministic heuristic, **not a score from an employer’s applicant-tracking system or a prediction of interviews**. Try fabricated resume text first, inspect the matched/missing keywords, and verify every suggested skill and metric before using a draft. See [Privacy](#-privacy) before uploading a real resume.
+
 ## Why Career Forge?
 
 Most resume tools give you a single opaque "compatibility: 73%" and no idea what to do next.
