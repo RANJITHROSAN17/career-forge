@@ -301,3 +301,7 @@ Built for the **Anna AI OS Founding Builder Challenge 2026** 🏆
 [Build on Anna 101](https://forum.anna.partners/t/build-on-anna-101/228)
 
 </div>
+
+## Maintainer
+
+**[Ranjith Rosan](https://github.com/RANJITHROSAN17)** maintains Career Forge, the resume and job-description comparison app for Anna. Anna and other third-party services are separate projects with their own terms.
